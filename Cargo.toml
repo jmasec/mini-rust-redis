@@ -1,0 +1,10 @@
+[workspace]
+members = [
+  "kvd-core",
+  "kvd-persist",
+  "kvd-net",
+  "kvd-admin",
+  "kvd",       # server bin
+  "kvd-cli"    # test client bin
+]
+resolver = "2"
