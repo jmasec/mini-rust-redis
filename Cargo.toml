@@ -4,7 +4,8 @@ members = [
   "kvd-persist",
   "kvd-net",
   "kvd-admin",
-  "kvd",       # server bin
-  "kvd-cli"    # test client bin
+  "kvd",
+  "kvd-cli"
 ]
 resolver = "2"
+
