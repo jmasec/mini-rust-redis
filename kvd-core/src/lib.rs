@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // Implement the in-memory keyspace (HashMap)
 // Store values + optional expiration timestamp
@@ -44,38 +44,40 @@ impl Counters {
 #[derive(Clone)]
 struct Record {
     value: Value,
-    expire_on: Instant, // current time in seconds + our timeout in seconds, then we get current time and check if its greater
+    expire_on: Option<u128>,
 }
 
 impl Record {
     fn timeout_check(&self) -> bool {
-        let now: Instant = Instant::now();
-        if self.expire_on > now {
+        let epoch_mili: Option<u128> = get_epoch_time();
+        if self.expire_on > epoch_mili || self.expire_on == None {
             return true;
         }
         false
     }
 
-    fn set_expire_timer(&mut self, time: Instant) {
-        self.expire_on = time;
+    fn set_expire_timer(&mut self, epoch_time: u128) {
+        self.expire_on = Some(epoch_time);
     }
 
-    fn check_time_left(&self) -> u64 {
-        let now: Instant = Instant::now();
-        let zero: Duration = Duration::ZERO;
-        let elapsed_time: Duration = now - self.expire_on;
-        if elapsed_time < zero {
-            return zero.as_secs();
+    fn check_time_left(&self) -> i64 {
+        let current_epoch_time: Option<u128> = get_epoch_time();
+        if self.expire_on.is_none() {
+            return -1;
         }
-        elapsed_time.as_secs()
-        // need to make expire able to be None
+        if current_epoch_time >= self.expire_on {
+            -2
+        } else {
+            let time_left: u128 = self.expire_on.unwrap() - current_epoch_time.unwrap();
+            (time_left / 1000).try_into().unwrap_or(i64::MAX)
+        }
     }
 }
 
 struct Engine {
     key_store: HashMap<String, Record>,
     counters: Counters,
-    start_time: Instant,
+    start_time: SystemTime,
 }
 
 impl Engine {
@@ -109,8 +111,14 @@ impl Engine {
 fn build_record(value_to_add: Value) -> Record {
     Record {
         value: value_to_add,
-        expire_on: Instant::now(),
+        expire_on: get_epoch_time(),
     }
+}
+
+fn get_epoch_time() -> Option<u128> {
+    let now: SystemTime = SystemTime::now();
+    let duration_since_epoch: Duration = now.duration_since(UNIX_EPOCH).unwrap();
+    Some(duration_since_epoch.as_millis())
 }
 
 // pub fn add(left: u64, right: u64) -> u64 {
