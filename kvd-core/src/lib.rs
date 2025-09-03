@@ -8,16 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 // Handle lazy expiration on reads and deletes
 // Add simple counters (keys_total, expired_keys_total, etc.)
 
-// fn main() {
-//     let start = Instant::now();
-
-//     // Simulate work
-//     thread::sleep(Duration::from_secs(2));
-
-//     let elapsed = start.elapsed();
-//     println!("Elapsed: {:.2?}", elapsed);
-// }
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Value {
     String(Vec<u8>),
     List(VecDeque<Vec<u8>>),
@@ -41,26 +32,26 @@ impl Counters {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Record {
     value: Value,
     expire_on: Option<u128>,
 }
 
 impl Record {
-    fn timeout_check(&self) -> bool {
+    fn check_timeout(&self) -> bool {
         let epoch_mili: Option<u128> = get_epoch_time();
-        if self.expire_on > epoch_mili || self.expire_on == None {
+        if self.expire_on > epoch_mili || self.expire_on.is_none() {
             return true;
         }
         false
     }
 
-    fn set_expire_timer(&mut self, epoch_time: u128) {
+    fn set_expire(&mut self, epoch_time: u128) {
         self.expire_on = Some(epoch_time);
     }
 
-    fn check_time_left(&self) -> i64 {
+    fn ttl(&self) -> i64 {
         let current_epoch_time: Option<u128> = get_epoch_time();
         if self.expire_on.is_none() {
             return -1;
@@ -72,6 +63,10 @@ impl Record {
             (time_left / 1000).try_into().unwrap_or(i64::MAX)
         }
     }
+
+    fn remove_ttl(&mut self) {
+        self.expire_on = None;
+    }
 }
 
 struct Engine {
@@ -81,37 +76,54 @@ struct Engine {
 }
 
 impl Engine {
-    fn add_new_record(&mut self, key: String, value: Value) {
+    fn set_entry(&mut self, key: String, value: Value) {
         let record: Record = build_record(value);
         self.key_store.insert(key, record);
     }
 
-    fn get_value(&self, key: &str) -> Option<Value> {
-        let record: Option<Record> = self.key_store.get(key).cloned();
-        if let Some(x) = record {
-            if x.timeout_check() {
+    fn get_entry(&mut self, key: &str) -> Option<Value> {
+        if let Some(record) = self.key_store.get(key) {
+            if !record.check_timeout() {
+                self.key_store.remove(key);
                 return None;
             }
-            Some(x.value)
+            Some(record.value.clone())
         } else {
             None
         }
     }
 
-    fn delete_key(&mut self, key: &str) -> bool {
+    fn del_entry(&mut self, key: &str) -> i32 {
         let record: Option<Record> = self.key_store.remove(key);
-        record.is_some()
+        if record.is_some() {
+            return 1;
+        }
+        0
     }
 
     fn exists(&self, key: &str) -> bool {
         self.key_store.contains_key(key)
+    }
+
+    fn info(&self) -> (usize, usize) {
+        (self.counters.keys_total, self.counters.expired_keys_total)
+    }
+
+    fn persist(&mut self, key: &str) {
+        if self.exists(key) {
+            self.key_store.get(key);
+        }
+    }
+
+    fn start_time(&self) -> SystemTime {
+        self.start_time
     }
 }
 
 fn build_record(value_to_add: Value) -> Record {
     Record {
         value: value_to_add,
-        expire_on: get_epoch_time(),
+        expire_on: None,
     }
 }
 
@@ -121,17 +133,33 @@ fn get_epoch_time() -> Option<u128> {
     Some(duration_since_epoch.as_millis())
 }
 
-// pub fn add(left: u64, right: u64) -> u64 {
-//     left + right
-// }
+fn init_engine() -> Engine {
+    Engine {
+        key_store: HashMap::new(),
+        counters: Counters {
+            keys_total: 0,
+            expired_keys_total: 0,
+        },
+        start_time: SystemTime::now(),
+    }
+}
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn it_works() {
-//         let result = add(2, 2);
-//         assert_eq!(result, 4);
-//     }
-// }
+    #[test]
+    fn engine_set_get() {
+        let mut engine: Engine = init_engine();
+
+        let key: String = "test".to_string();
+
+        let expected: Value = Value::String(b"start".to_vec()); // this is our comparison value
+
+        // Insert (set_entry takes ownership of Value)
+        engine.set_entry(key.clone(), expected.clone());
+
+        // Compare: get_entry returns Option<Value> (owned) in your code
+        assert_eq!(engine.get_entry(&key), Some(expected));
+    }
+}
