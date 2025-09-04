@@ -9,12 +9,12 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 // Add simple counters (keys_total, expired_keys_total, etc.)
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Value {
+pub enum Value {
     String(Vec<u8>),
-    List(VecDeque<Vec<u8>>),
-    Set(HashSet<Vec<u8>>),
-    Hash(HashMap<String, Vec<u8>>),
-    SortedSet(BTreeMap<i64, Vec<u8>>),
+    // List(VecDeque<Vec<u8>>),
+    // Set(HashSet<Vec<u8>>),
+    // Hash(HashMap<String, Vec<u8>>),
+    // SortedSet(BTreeMap<i64, Vec<u8>>),
 }
 
 struct Counters {
@@ -33,7 +33,7 @@ impl Counters {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Record {
+pub struct Record {
     value: Value,
     expire_on: Option<u128>,
 }
@@ -69,19 +69,19 @@ impl Record {
     }
 }
 
-struct Engine {
+pub struct Engine {
     key_store: HashMap<String, Record>,
     counters: Counters,
     start_time: SystemTime,
 }
 
 impl Engine {
-    fn set_entry(&mut self, key: String, value: Value) {
+    pub fn set_entry(&mut self, key: String, value: Value) {
         let record: Record = build_record(value);
         self.key_store.insert(key, record);
     }
 
-    fn get_entry(&mut self, key: &str) -> Option<Value> {
+    pub fn get_entry(&mut self, key: &str) -> Option<Value> {
         if let Some(record) = self.key_store.get(key) {
             if !record.check_timeout() {
                 self.key_store.remove(key);
@@ -93,7 +93,8 @@ impl Engine {
         }
     }
 
-    fn del_entry(&mut self, key: &str) -> i32 {
+    // need to handle list of keys, take in a vector of keys
+    pub fn del_entry(&mut self, key: &str) -> i32 {
         let record: Option<Record> = self.key_store.remove(key);
         if record.is_some() {
             return 1;
@@ -101,21 +102,21 @@ impl Engine {
         0
     }
 
-    fn exists(&self, key: &str) -> bool {
+    pub fn exists(&self, key: &str) -> bool {
         self.key_store.contains_key(key)
     }
 
-    fn info(&self) -> (usize, usize) {
+    pub fn info(&self) -> (usize, usize) {
         (self.counters.keys_total, self.counters.expired_keys_total)
     }
 
-    fn persist(&mut self, key: &str) {
+    pub fn persist(&mut self, key: &str) {
         if self.exists(key) {
             self.key_store.get(key);
         }
     }
 
-    fn start_time(&self) -> SystemTime {
+    pub fn start_time(&self) -> SystemTime {
         self.start_time
     }
 }

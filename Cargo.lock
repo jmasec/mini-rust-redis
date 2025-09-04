@@ -250,6 +250,7 @@ name = "kvd-net"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "kvd-core",
  "thiserror",
  "tokio",
  "tracing",

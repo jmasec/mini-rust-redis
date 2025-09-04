@@ -8,3 +8,4 @@ bytes = "1.10.1"
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
+kvd-core = { path = "../kvd-core" }
