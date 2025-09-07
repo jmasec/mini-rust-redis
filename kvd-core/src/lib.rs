@@ -76,6 +76,17 @@ pub struct Engine {
 }
 
 impl Engine {
+    pub fn new() -> Engine {
+        Engine {
+            key_store: HashMap::new(),
+            counters: Counters {
+                keys_total: 0,
+                expired_keys_total: 0,
+            },
+            start_time: SystemTime::now(),
+        }
+    }
+
     pub fn set_entry(&mut self, key: String, value: Value) {
         let record: Record = build_record(value);
         self.key_store.insert(key, record);
@@ -118,6 +129,12 @@ impl Engine {
 
     pub fn start_time(&self) -> SystemTime {
         self.start_time
+    }
+}
+
+impl Default for Engine {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
